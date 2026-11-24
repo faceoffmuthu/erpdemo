@@ -46,7 +46,7 @@ export function buyerPoIdentityFields(app) {
   const buyers = app.data.parties.filter(row => row.type === 'Buyer');
   return choose('Buyer', 'buyerId', buyers, titles.party) +
     '<p class="sub wide" data-po-buyer-status role="status" hidden></p>' +
-    (!app.user.poAi?.geminiReady ? '<p class="sub muted wide">Automatic buyer matching uses the Gemini key configured in HAPZO’s .env file.</p>' : '') +
+    (!app.user.poAi?.geminiReady ? '<p class="sub muted wide">Automatic buyer matching uses the key configured in <a href="#gemini-models">Gemini Model API settings</a>.</p>' : '') +
     newPoBuyerFields();
 }
 
@@ -436,7 +436,7 @@ function poImportPanel(app, open) {
   const provider = app.user.poAi?.provider || 'gemini';
   const name = PO_AI_PROVIDERS[provider];
   if (!app.user.poAi?.ready) return details('Import buyer PO with AI',
-    note('Set HAPZO_GEMINI_API_KEY in HAPZO’s .env file and restart HAPZO to enable AI buyer PO import.'), open);
+    '<p class="note">Ask an administrator to configure the <a href="#gemini-models">Gemini Model API settings</a> to enable AI buyer PO import.</p>', open);
   const accept = '.pdf,.xlsx,image/png,image/jpeg';
   const uploads = (app.data.buyerPoUploads ?? []).map(row => [row.id, row.label + ' · ' +
     new Date(row.addedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })]);

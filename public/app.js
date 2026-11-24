@@ -2,6 +2,7 @@ import { norm, ref, STAGES, validDate } from '/src/model.mjs';
 import { can, h, button, form, field, check, option, note, details, empty, geminiModelOptions, geminiRetryMessage, table } from '/ui.js';
 import * as operations from '/pages.js';
 import * as compliance from '/compliance-ui.js';
+import * as geminiUi from '/gemini-ui.js';
 import * as finance from '/finance-ui.js';
 import { fabricPage, fabricReportDetail, fabricTechPackReview, loadFabricCalculator, refreshFabricEditor, selectFabricLot } from '/fabric-ui.js';
 import * as garments from '/garment-ui.js';
@@ -21,7 +22,21 @@ import { PO_IMPORT_ACTION } from '/src/po-import.mjs';
 const app = { user: null, data: null, initialized: true, local: {} };
 const root = document.querySelector('#app');
 const dialog = document.querySelector('#detail-dialog');
-const brands = '<span class="mark" aria-hidden="true">H</span><span>HAPZO<small>ERP + DIGITAL PRODUCT PASSPORT</small></span>';
+const brands = '<span class="mark" aria-hidden="true"><svg viewBox="0 0 36 36"><path d="M29.6 5.2C17.2 5.7 9 10.8 7.1 18.5c-1.7 6.8 3.7 12.7 10.4 11.5 8.7-1.6 13.3-10.7 12.1-24.8Z" fill="currentColor"/><path d="M7.8 19.5c5.2 1.4 10.5 4.8 14 9.8M11.2 13.5c5.7 1.5 10.7 4.4 14.1 8.8M16.6 9.6c4.1 1.1 7.6 3.3 10.1 6.1" fill="none" stroke="var(--mark-line,#fff)" stroke-linecap="round" stroke-width="1.4"/></svg></span><span>HAPZO<small>Decaste · Endless Business</small></span>';
+const themes = [['aqua', 'Aqua / Mint'], ['blush', 'Blush / Rose'], ['warm', 'Warm Ivory / Sand'], ['lime', 'Fresh Lime / Sage']];
+function applyTheme(name) {
+  const theme = themes.some(([key]) => key === name) ? name : 'warm';
+  document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem('hapzo-theme', theme); } catch {}
+  for (const button of document.querySelectorAll('[data-theme-choice]')) {
+    const selected = button.dataset.themeChoice === theme;
+    button.setAttribute('aria-pressed', String(selected));
+    button.classList.toggle('selected', selected);
+  }
+}
+try { applyTheme(localStorage.getItem('hapzo-theme') || 'warm'); } catch { applyTheme('warm'); }
+const themePicker = () => '<div class="theme-picker" role="group" aria-label="Choose a color theme"><span>Choose a theme</span>' +
+  themes.map(([key, label]) => '<button type="button" data-theme-choice="' + key + '" aria-label="' + label + ' theme" title="' + label + '"></button>').join('') + '</div>';
 const pages = new Map([
   ['overview', ['Overview', 'Workspace', operations.overview]],
   ['orders', ['Buyer orders', 'Commercial', operations.orders]],
@@ -59,10 +74,30 @@ const pages = new Map([
   ['passports', ['Digital Product Passports', 'Product records', compliance.passports]],
   ['masters', ['Company masters', 'Administration', operations.masters]],
   ['settings', ['Settings & data', 'Administration', compliance.settings]],
+  ['gemini-models', ['Gemini Model API', 'AI settings', geminiUi.geminiSettings]],
   ['buyer', ['My orders', 'Buyer portal', compliance.buyer]],
 ]);
-const allowed = key => app.user.role === 'Buyer' ? ['buyer', 'settings'].includes(key) :
+const allowed = key => key === 'gemini-models' ? app.user.role === 'Admin' : app.user.role === 'Buyer' ? ['buyer', 'settings'].includes(key) :
   key !== 'buyer' && (pages.get(key)?.[1] !== 'Finance' || ['Admin', 'Finance'].includes(app.user.role));
+const moduleItems = [
+  { id: 'dashboard', group: 'Workspace', label: 'Dashboard', icon: '⌂', description: 'A live overview of your people, orders, production, and company records.' },
+  { id: 'commercial', group: 'Commercial', label: 'Commercial', icon: '▤', description: 'Buyer orders, product specifications, purchase planning, and supplier workflows.' },
+  { id: 'manufacturing', group: 'Manufacturing', label: 'Manufacturing', icon: '⚙', description: 'Plan and track materials, work orders, production routes, and quality.' },
+  { id: 'fulfilment', group: 'Fulfilment', label: 'Fulfilment', icon: '➜', description: 'Pack finished goods and manage dispatch, delivery, and logistics.' },
+  { id: 'finance', group: 'Finance', label: 'Finance', icon: '₹', description: 'Manage invoices, vouchers, ledgers, and financial reports.' },
+  { id: 'social-compliance-system', group: 'Product records', label: 'Social Compliance System', icon: '◇', description: 'Trace materials, manage standards and evidence, and publish product passports.' },
+  { id: 'administrations', group: 'Administration', label: 'Administrations', icon: '⚙', description: 'Configure company masters, workspace settings, and access.' },
+  { id: 'gemini-model-api', group: 'AI settings', label: 'Gemini Model API', icon: '✧', description: 'Configure the Gemini API key and select the models used for document reading.' },
+  { id: 'buyer-portal', group: 'Buyer portal', label: 'Buyer portal', icon: '▣', description: 'Review your orders, shipments, and product records.' },
+];
+const moduleById = new Map(moduleItems.map(item => [item.id, item]));
+const moduleByGroup = new Map(moduleItems.map(item => [item.group, item]));
+const moduleDescription = {
+  overview: 'Monitor the main signals from your connected operations.', orders: 'Review and update buyer purchase orders.', 'po-flow': 'Follow a purchase order through each production and delivery stage.',
+  fabric: 'Maintain fabric specifications and construction details.', 'tech-pack': 'Create and review garment product specifications.', purchase: 'Plan material demand and manage purchasing.', stock: 'Receive, locate, and track inventory.', floor: 'Release and track production work orders.',
+  fibre: 'Track fibre intake, ginning, and bale genealogy.', spinning: 'Manage spinning batches, output, and yarn traceability.', knitting: 'Plan knitting orders and record fabric output.', weaving: 'Manage warp, weft, loom runs, and fabric rolls.', 'fabric-dyeing': 'Record fabric dyeing batches and measurable output.', 'fabric-finishing': 'Track finishing routes and finished fabric lots.', 'yarn-dyeing': 'Manage yarn dyeing batches and dyed yarn lots.', washing: 'Plan and record in-house and commission washing.', printing: 'Manage fabric, garment, and panel printing.', cutting: 'Plan cutting work and record garment components.', embroidery: 'Track embroidery orders and panel movement.', stitching: 'Manage sewing lines and production output.', 'garment-finishing': 'Record garment finishing and inspection.', quality: 'Record inspections, test results, and quality decisions.', jobwork: 'Track material sent to and received from outside processors.', equipment: 'Maintain machines and operational readings.', packing: 'Build cartons and prepare finished goods for dispatch.', logistics: 'Manage shipments, delivery records, and freight.',
+  invoices: 'Review invoices, service costs, and financial documents.', accounts: 'Post receipts, payments, journals, and contra vouchers.', ledgers: 'Review account activity and balances.', 'day-book': 'Review posted vouchers by date.', reports: 'Review financial position and performance.', trace: 'Search lots and inspect their production history.', standards: 'Manage standards, evidence, and compliance reviews.', passports: 'Create and publish digital product passports.', masters: 'Manage company-wide reference data.', settings: 'Manage workspace settings, members, and data.', buyer: 'Review your company orders and product records.',
+};
 let current = '';
 let scanStream;
 let lastDataRequest = 0;
@@ -78,13 +113,23 @@ class ApiError extends Error {
   }
 }
 
+const frontendDemo = fetch('/demo-state.json').then(response => {
+  if (!response.ok) throw new Error('The sample workspace could not be loaded.');
+  return response.json();
+});
+
 async function api(url, data) {
-  const response = await fetch(url, data === undefined ? {} : {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data),
-  });
-  const result = await response.json();
-  if (!response.ok) throw new ApiError(result, response.status);
-  return result;
+  const demo = await frontendDemo;
+  if (data !== undefined) {
+    throw new ApiError({ error: 'This frontend preview does not include a backend. Changes are not saved.' }, 501);
+  }
+  const path = new URL(url, window.location.href).pathname;
+  const user = { ...demo.user, publishedOrigin: window.location.origin };
+  if (path === '/api/session') return { initialized: true, user };
+  if (path === '/api/state') return { user, data: demo.data };
+  if (path === '/api/members') return { members: demo.members };
+  if (path === '/api/gemini-models') return { models: [], defaultModel: user.poAi.defaultModel, canManage: false };
+  throw new ApiError({ error: 'This frontend preview does not include a backend API.' }, 501);
 }
 const signed = (url, data = {}) => api(url, { ...data, companyId: app.user.companyId });
 const flash = (message = '', error = false) => {
@@ -94,11 +139,20 @@ const flash = (message = '', error = false) => {
   el.classList.toggle('err', error);
   el.textContent = message;
 };
-const errorText = err => err instanceof TypeError ? 'HAPZO could not reach its local server. Keep this tab open and retry after restarting the launcher.' : err.message;
+const errorText = err => err.message;
 
 function pageFromUrl() {
   const key = window.location.hash.slice(1).split('?')[0];
-  return allowed(key) && pages.has(key) ? key : app.user.role === 'Buyer' ? 'buyer' : 'overview';
+  if (allowed(key) && pages.has(key)) return key;
+  const moduleId = new URLSearchParams(window.location.search).get('module');
+  const selectedModule = moduleById.get(moduleId);
+  if (selectedModule?.id === 'gemini-model-api' && allowed('gemini-models')) return 'gemini-models';
+  if (selectedModule && (selectedModule.group === 'Workspace' || selectedModule.group === 'Buyer portal')) {
+    const target = selectedModule.group === 'Buyer portal' ? 'buyer' : 'overview';
+    if (allowed(target)) return target;
+  }
+  if (selectedModule && [...pages].some(([page, [, group]]) => group === selectedModule.group && allowed(page))) return 'module:' + selectedModule.group;
+  return app.user.role === 'Buyer' ? 'buyer' : 'overview';
 }
 
 function routeParams() {
@@ -108,6 +162,29 @@ function routeParams() {
 function go(next) {
   if (window.location.hash === '#' + next) render();
   else window.location.hash = next;
+}
+
+function goModule(moduleId) {
+  const item = moduleById.get(moduleId);
+  if (!item) return;
+  const url = new URL(window.location.href);
+  url.searchParams.set('module', moduleId);
+  url.hash = '';
+  window.history.pushState({}, '', url);
+  handleRoute();
+}
+
+function moduleLanding(group) {
+  const item = moduleByGroup.get(group);
+  if (!item) return '';
+  const links = [...pages].filter(([key, [, pageGroup]]) => pageGroup === group && allowed(key));
+  return '<section class="module-landing"><header class="module-hero"><span class="module-hero-icon" aria-hidden="true">' + h(item.icon) +
+    '</span><div><p class="heading-eyebrow">HAPZO MODULE</p><h1>' + h(item.label) + '</h1><p>' + h(item.description) +
+    '</p></div></header><div class="module-section-heading"><div><p class="heading-eyebrow">WORKSPACE</p><h2>Choose a workspace</h2></div><span>' + links.length +
+    (links.length === 1 ? ' workspace' : ' workspaces') + '</span></div><div class="module-card-grid">' + links.map(([key, [label]]) =>
+      '<a class="module-card" href="#' + encodeURIComponent(key) + '"><span class="module-card-icon" aria-hidden="true">' + h(({ overview: '⌂', orders: '▤', standards: '◇', passports: '▱', settings: '⚙' })[key] || item.icon) +
+      '</span><span class="module-card-copy"><strong>' + h(label) + '</strong><small>' + h(moduleDescription[key] || 'Open this workspace to manage its records and workflow.') +
+      '</small></span><span class="module-card-arrow" aria-hidden="true">↗</span></a>').join('') + '</div></section>';
 }
 
 async function load(renderPage = true) {
@@ -158,13 +235,20 @@ function renderAuth() {
   const initial = !app.initialized;
   const loginFields = initial ? field('Company name', 'companyName', { value: 'HAPZO Decaste' }) +
     field('Your name', 'displayName', { autocomplete: 'name' }) : '';
-  root.innerHTML = '<main class="login-layout"><section class="paper"><div class="brand">' + brands + '</div><h1>' +
-    (initial ? 'Set up HAPZO Local' : 'Sign in') + '</h1><p class="muted">' +
-    (initial ? 'Create the administrator and company that will hold your local ERP records.' : 'Use the login assigned to your company workspace.') +
-    '</p><div id="flash" class="flash" role="status" hidden></div>' + form(initial ? 'setup' : 'login',
+  root.innerHTML = '<main class="login-layout"><section class="auth-story"><header class="auth-brand"><a class="brand" href="/">' + brands +
+    '</a><span class="connected-badge"><i></i> Connected textile operations</span></header><div class="story-copy"><p class="eyebrow">ENDLESS BUSINESS</p>' +
+    '<h1>Clarity for every thread of your <em>business.</em></h1><p class="story-description">A connected workspace for orders, manufacturing, standards, and product passports across your textile business.</p>' +
+    '<div class="story-points"><span><b>✓</b> Thoughtful access control</span><span><b>✦</b> Standards-led foundation</span></div></div>' +
+    '<footer class="auth-attribution">Developed by <strong>Lordminds Private Limited</strong><span>·</span> Powered by <strong>Mentaguide</strong></footer></section>' +
+    '<section class="auth-panel"><div class="auth-theme">' + themePicker() + '</div><section class="auth-card"><span class="auth-card-mark" aria-hidden="true">✿</span>' +
+    '<p class="eyebrow">HAPZO · DECASTE</p><h2>' + (initial ? 'Create your workspace' : 'Welcome back') + '</h2><p class="auth-subtitle">' +
+    (initial ? 'Set up your company and administrator login to get started.' : 'Sign in to continue to your company workspace.') + '</p>' +
+    '<div id="flash" class="flash" role="status" hidden></div>' + form(initial ? 'setup' : 'login',
       loginFields + field('Login', 'login', { autocomplete: 'username' }) +
       field('Password', 'password', { type: 'password', autocomplete: initial ? 'new-password' : 'current-password' }),
-      initial ? 'Create workspace' : 'Sign in', initial ? 'Use a password of at least 12 characters.' : '') + '</section></main>';
+      initial ? 'Create workspace' : 'Sign in', initial ? 'Use a password of at least 12 characters.' : '') +
+    '</section><footer class="auth-copyright">© ' + new Date().getFullYear() + ' Hapzo Decaste</footer></section></main>';
+  applyTheme(document.documentElement.dataset.theme);
 }
 
 function render() {
@@ -178,22 +262,48 @@ function render() {
   for (const [key, [label, group]] of pages) {
     if (!allowed(key)) continue;
     const links = groups.get(group) ?? [];
-    links.push('<a href="#' + key + '"' + (key === selected ? ' aria-current="page"' : '') + '>' + h(label) + '</a>');
+    links.push({ key, label });
     groups.set(group, links);
   }
-  const nav = [...groups].map(([name, links]) => '<div class="nav-group"><small>' + h(name) + '</small>' + links.join('') + '</div>').join('');
+  const activeGroup = selected.startsWith('module:') ? selected.slice(7) : pages.get(selected)?.[1];
+  const nav = [...groups].map(([name, links]) => {
+    const module = moduleByGroup.get(name);
+    if (!module) return '';
+    return '<div class="nav-group"><a href="?module=' + encodeURIComponent(module.id) + '" data-module-link="' + h(module.id) + '"' +
+      (name === activeGroup ? ' aria-current="page"' : '') + '><span class="nav-icon" aria-hidden="true">' + h(module.icon) + '</span><span>' + h(module.label) + '</span></a></div>';
+  }).join('');
   const companies = app.user.companies.map(c => option(c.id, c.name, app.user.companyId)).join('');
-  root.innerHTML = '<div class="shell"><aside class="sidebar"><a class="brand" href="#' +
-    (app.user.role === 'Buyer' ? 'buyer' : 'overview') + '">' + brands + '</a><nav aria-label="HAPZO modules">' + nav +
-    '</nav></aside><main class="main"><header class="topbar"><div><strong>' + h(app.data.settings.name) +
-    '</strong><span class="muted">' + h(app.user.name + ' · ' + app.user.role) + '</span></div><div class="workspace">' +
-    '<select id="company-select" aria-label="Active company">' + companies + '</select>' +
-    button('Reload', 'data-reload="yes"') + button('Sign out', 'data-logout="yes"') +
-    '</div></header><div id="flash" class="flash" role="status" hidden></div><div class="container" id="workspace-page">' +
-    pages.get(selected)[2](app, routeParams()) + '</div></main></div>';
+  root.innerHTML = '<div class="shell"><aside class="sidebar"><div class="sidebar-brand-row"><a class="brand" href="#' +
+    (app.user.role === 'Buyer' ? 'buyer' : 'overview') + '">' + brands + '</a><button class="sidebar-toggle" type="button" data-sidebar-toggle aria-label="Collapse navigation" aria-expanded="true" title="Collapse navigation">‹</button></div>' +
+    '<label class="sidebar-search"><span aria-hidden="true">⌕</span><input id="module-search" type="search" placeholder="Find a module" aria-label="Search modules"></label>' +
+    '<nav aria-label="HAPZO modules">' + nav + '<p class="nav-empty" hidden>No matching modules.</p></nav><div class="sidebar-foot"><span class="sidebar-avatar">' + h((app.user.name || 'H').slice(0, 1).toUpperCase()) +
+    '</span><span><strong>' + h(app.user.name) + '</strong><small>' + h(app.user.role) + '</small></span></div>' +
+    '</aside><main class="main"><header class="topbar"><label class="top-search"><span aria-hidden="true">⌕</span><input id="global-search" type="search" placeholder="Search modules…" aria-label="Search modules"></label><div class="topbar-tools">' +
+    '<label class="company-picker"><span>Company</span><select id="company-select" aria-label="Active company">' + companies + '</select></label>' +
+    '<button class="button icon-button" type="button" data-reload="yes" aria-label="Refresh workspace" title="Refresh">↻</button>' + themePicker() +
+    (app.user.frontendPreview ? '<span class="local-bypass-badge">Frontend preview</span>' : '') +
+    '<div class="user-profile"><span class="profile-avatar">' + h((app.user.name || 'H').slice(0, 1).toUpperCase()) + '</span><span><strong>' + h(app.user.name) + '</strong><small>' + h(app.user.role) + '</small></span></div>' +
+    (app.user.frontendPreview ? '' : button('Sign out', 'data-logout="yes"', 'secondary')) + '</div></header>' +
+    (app.user.frontendPreview ? '<div class="local-access-notice" role="status">Frontend preview · sample records only · changes are not saved.</div>' : '') +
+    '<div id="flash" class="flash" role="status" hidden></div><div class="container" id="workspace-page">' +
+    (selected.startsWith('module:') ? moduleLanding(selected.slice(7)) : pages.get(selected)[2](app, routeParams())) + '</div></main></div>';
+  try { root.classList.toggle('sidebar-collapsed', localStorage.getItem('hapzo-sidebar-collapsed') === 'yes'); } catch {}
+  const collapsed = root.classList.contains('sidebar-collapsed');
+  const toggle = root.querySelector('[data-sidebar-toggle]');
+  if (toggle && collapsed) {
+    toggle.textContent = '›';
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', 'Expand navigation');
+    toggle.title = 'Expand navigation';
+  }
+  applyTheme(document.documentElement.dataset.theme);
   for (const editor of root.querySelectorAll('[data-fabric-editor]')) refreshFabricEditor(editor, app);
   const settlement = root.querySelector('form[data-form="account-settle"]');
   if (settlement) finance.refreshSettlement(settlement, app);
+  if (selected === 'gemini-models' && app.local.geminiCatalogCompany !== app.user.companyId && !app.local.geminiCatalogLoading) {
+    app.local.geminiCatalogLoading = true;
+    queueMicrotask(() => loadGeminiCatalogue(app.user?.companyId));
+  }
 }
 
 async function showError(error) {
@@ -260,6 +370,26 @@ function updateGeminiModels(models) {
     id === previous[i].id && label === previous[i].label && status === previous[i].status)) return;
   for (const field of root.querySelectorAll('select[name="geminiModel"]')) {
     field.innerHTML = geminiModelOptions(models, field.value);
+  }
+}
+
+async function loadGeminiCatalogue(companyId = app.user?.companyId, refresh = false) {
+  if (!companyId || !app.user?.poAi) return;
+  try {
+    const result = await api('/api/gemini-models' + (refresh ? '?refresh=1' : ''));
+    if (app.user?.companyId !== companyId) return;
+    app.local.geminiCatalogue = { ...result, loading: false };
+    app.local.geminiCatalogueError = '';
+    app.user.poAi.canManage = result.canManage;
+    updateGeminiModels(result.models);
+  } catch (error) {
+    if (app.user?.companyId === companyId) app.local.geminiCatalogueError = errorText(error);
+  } finally {
+    if (app.user?.companyId === companyId) {
+      app.local.geminiCatalogCompany = companyId;
+      app.local.geminiCatalogLoading = false;
+      if (current === 'gemini-models') render();
+    }
   }
 }
 
@@ -594,7 +724,7 @@ root.addEventListener('submit', async e => {
   const buttonText = goButton?.textContent;
   try {
     if (reading) {
-      if (!app.user.poAi?.ready) throw new Error('Configure the Gemini key in HAPZO’s .env file and restart HAPZO.');
+      if (!app.user.poAi?.ready) throw new Error('Ask an administrator to configure the Gemini Model API in HAPZO settings.');
       if (goButton) goButton.textContent = action === 'read-buyer-po' ? 'Reading buyer PO…' : 'Reading tech packs…';
     }
     if (action === 'read-fabric-tech-pack') return await readFabricTechPacks(el, companyId);
@@ -604,6 +734,23 @@ root.addEventListener('submit', async e => {
       app.initialized = true;
       await load();
       return;
+    }
+    if (action === 'gemini-api-key') {
+      const result = await api('/api/po-ai-key', { companyId, provider: 'gemini', key: input.key });
+      if (app.user?.companyId !== companyId) return;
+      app.user.poAi = { ...result.poAi, canManage: true };
+      el.reset();
+      app.local.geminiCatalogCompany = '';
+      await loadGeminiCatalogue(companyId);
+      render();
+      return flash('Gemini API key saved on this server.');
+    }
+    if (action === 'gemini-default-model') {
+      const result = await api('/api/gemini-model', { companyId, model: input.model });
+      if (app.user?.companyId !== companyId) return;
+      app.local.geminiCatalogue = { ...app.local.geminiCatalogue, defaultModel: result.defaultModel, models: app.local.geminiCatalogue?.models || result.models };
+      render();
+      return flash('Default Gemini model saved.');
     }
     if (action === 'lookup') return findLot(input.query);
     if (action === 'tech-pack-filter') return go(garments.garmentHash(app.user.companyId, input.lineId));
@@ -816,9 +963,26 @@ document.addEventListener('click', async e => {
     }
     return;
   }
+  const moduleLink = e.target.closest('a[data-module-link]');
+  if (moduleLink && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && e.button === 0) {
+    e.preventDefault();
+    goModule(moduleLink.dataset.moduleLink);
+    return;
+  }
   const clicked = e.target.closest('button');
-  if (!clicked || !app.user) return;
+  if (!clicked) return;
   const d = clicked.dataset;
+  if (d.themeChoice) return applyTheme(d.themeChoice);
+  if (d.sidebarToggle) {
+    const collapsed = root.classList.toggle('sidebar-collapsed');
+    clicked.setAttribute('aria-expanded', String(!collapsed));
+    clicked.setAttribute('aria-label', collapsed ? 'Expand navigation' : 'Collapse navigation');
+    clicked.title = collapsed ? 'Expand navigation' : 'Collapse navigation';
+    clicked.textContent = collapsed ? '›' : '‹';
+    try { localStorage.setItem('hapzo-sidebar-collapsed', collapsed ? 'yes' : 'no'); } catch {}
+    return;
+  }
+  if (!app.user) return;
   try {
     if (d.logout) {
       await signed('/api/logout');
@@ -829,6 +993,22 @@ document.addEventListener('click', async e => {
       return render();
     }
     if (d.reload) { await load(); return flash('Workspace updated.'); }
+    if (d.refreshGemini) {
+      app.local.geminiCatalogCompany = '';
+      app.local.geminiCatalogLoading = true;
+      await loadGeminiCatalogue(app.user.companyId, true);
+      return flash('Gemini model list updated.');
+    }
+    if (d.removeGeminiKey) {
+      const companyId = app.user.companyId;
+      const result = await api('/api/po-ai-key', { companyId, remove: 'yes', scope: 'default' });
+      if (app.user?.companyId !== companyId) return;
+      app.user.poAi = { ...result.poAi, canManage: true };
+      app.local.geminiCatalogCompany = '';
+      await loadGeminiCatalogue(companyId);
+      render();
+      return flash('Saved Gemini API key removed.');
+    }
     if (d.flowTop) {
       document.querySelector('.po-flow-card[aria-current="step"]')?.focus({ preventScroll: true });
       return document.querySelector('.po-flow-chart')?.scrollIntoView({ block: 'start' });
@@ -922,6 +1102,19 @@ document.addEventListener('input', e => {
   if (e.target.dataset.billId) finance.showAppliedTotal(e.target.form);
   if (e.target.dataset.poSuggestion) delete e.target.dataset.poSuggestion;
   const target = e.target;
+  if (target.id === 'module-search' || target.id === 'global-search') {
+    const query = target.value.trim().toLocaleLowerCase();
+    for (const input of document.querySelectorAll('#module-search, #global-search')) if (input !== target) input.value = target.value;
+    let visible = 0;
+    for (const link of root.querySelectorAll('.nav-group a')) {
+      const match = !query || link.textContent.toLocaleLowerCase().includes(query);
+      link.hidden = !match;
+      if (match) visible++;
+    }
+    for (const group of root.querySelectorAll('.nav-group')) group.hidden = !group.querySelector('a:not([hidden])');
+    const emptyNav = root.querySelector('.nav-empty');
+    if (emptyNav) emptyNav.hidden = visible !== 0;
+  }
   const editor = target.closest('[data-fabric-editor]') ??
     (['yarnSystems', 'yarnRepeatCells'].includes(target.name) ? target.closest('[data-tech-row="fabrics"]')?.querySelector('[data-fabric-editor]') : null);
   if (editor) refreshFabricEditor(editor, app);
@@ -1025,6 +1218,7 @@ document.addEventListener('change', async e => {
 });
 
 window.addEventListener('hashchange', handleRoute);
+window.addEventListener('popstate', handleRoute);
 try {
   const { initialized, user } = await api('/api/session');
   app.initialized = initialized;

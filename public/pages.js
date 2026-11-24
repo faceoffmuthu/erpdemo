@@ -54,10 +54,7 @@ export function overview(app) {
   const open = s.lines.filter(l => l.status === 'Approved' && l.qty > shippedQty(s, l.id));
   const buttons = sample ? actions(button('Trace sample carton', 'data-lot="CTN-26018-01"'), button('Trace fibre forward', 'data-lot="FIB-001"')) :
     actions(navLink('Set up masters', 'masters'), navLink('Create buyer PO', 'orders'), navLink('Receive stock', 'stock'));
-  return heading('Operations overview', s.settings.name) +
-    '<section class="dashboard-intro"><div><h2>' + (sample ? 'Follow a buyer PO through the factory' : 'Buyer orders, factory activity and dispatch') +
-    '</h2><p>' + (sample ? 'Two carton lots fulfil PO DC-26018. Follow either carton back to its fabric, yarn and fibre inputs.' :
-      'Create buyer and material records, approve the order line, then post each handoff as goods move through the factory.') + '</p>' + buttons + '</div></section>' +
+  return heading('Dashboard', 'Live overview of buyer orders, production, inventory, and dispatch.', buttons) +
     cards([['Open approved PO lines', open.length], ['Lots on hold / inspection', s.lots.filter(l => l.qty > 0 && (l.standardHold || l.qualityStatus !== 'Released')).length],
       ['Work orders on floor', s.workOrders.filter(w => ['Released', 'In progress'].includes(w.status)).length], ['Dispatches', s.shipments.length]]) +
     panel('Buyer order progress', orderLineTable(s, s.lines.slice(-12).reverse())) +

@@ -300,7 +300,7 @@ export function loadFabricCalculator(container, result, index, app) {
 function fabricTechPackPanel(app) {
   if (!can(app, PO_IMPORT_ACTION)) return '';
   const ai = app.user.poAi;
-  if (!ai?.ready) return panel('Upload tech packs', note('Configure the Gemini key in HAPZO’s .env file and restart HAPZO to read tech packs.'));
+  if (!ai?.ready) return panel('Upload tech packs', '<p class="note">Configure Gemini from <a href="#gemini-models">Gemini Model API settings</a> to read tech packs.</p>');
   const name = PO_AI_PROVIDERS[ai.provider];
   return panel('Upload tech packs', form('read-fabric-tech-pack', hidden('provider', ai.provider) +
     (ai.provider === 'gemini' ? geminiModelField(ai.models) : '') +

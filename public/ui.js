@@ -19,7 +19,7 @@ export const finishBatchLink = (id, label) => '<a href="#fabric-finishing?batch=
 export const printBatchLink = (id, label) => '<a href="#printing?batch=' + encodeURIComponent(id) + '">' + h(label) + '</a>';
 export const embroideryBatchLink = (id, label) => '<a href="#embroidery?batch=' + encodeURIComponent(id) + '">' + h(label) + '</a>';
 export const docs = d => d?.id ? '<a href="/api/documents/' + encodeURIComponent(d.id) + '">' + h(d.label) + '</a>' : '—';
-export const heading = (title, desc, actions = '') => '<div class="heading"><div><h1>' + h(title) + '</h1>' + (desc ? '<p>' + h(desc) + '</p>' : '') + '</div>' + (actions ? '<div class="actions">' + actions + '</div>' : '') + '</div>';
+export const heading = (title, desc, actions = '') => '<div class="heading"><div class="heading-copy"><small class="heading-eyebrow">HAPZO WORKSPACE</small><h1>' + h(title) + '</h1>' + (desc ? '<p>' + h(desc) + '</p>' : '') + '</div>' + (actions ? '<div class="actions">' + actions + '</div>' : '') + '</div>';
 export const panel = (title, body) => '<section class="panel"><h2>' + h(title) + '</h2>' + body + '</section>';
 export const split = (...items) => '<div class="split">' + items.join('') + '</div>';
 export const actions = (...items) => '<div class="actions">' + items.filter(Boolean).join('') + '</div>';
